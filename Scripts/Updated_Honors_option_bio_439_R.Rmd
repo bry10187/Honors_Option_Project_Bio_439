@@ -1,0 +1,148 @@
+---
+title: "Updated_R_markdown_bio_439"
+author: "Bryan Manzano"
+date: "11/30/2021"
+output: html_document
+---
+#Set global options, all code chunks will have echo = TRUE applied and all code chunks will be set in specified working directory unless specified using a setwd function
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE) 
+knitr::opts_knit$set(root.dir = "/Users/bryan/Documents/Honors_option_bio_439/Data")
+```
+
+## Load Packages and set working directory
+
+```{r}
+library(DESeq2)
+library(pasilla)
+library(apeglm)
+```
+
+##Read in files (both count file and the metadata) and check if #row in coldata match match #columns in cts
+
+```{r}
+cts <- read.delim(file = "E-MTAB-4655-raw-counts.tsv", header = TRUE, sep = "\t", skipNul = TRUE)
+ncol(cts) #17
+coldata <- read.delim(file = "E-MTAB-4655-experiment-design.tsv", header = TRUE, sep = "\t", skipNul = TRUE)
+nrow(coldata) #15 Fix this, both have 15 samples, so remove gene ID and annoation from cts to ensure number of rows match
+```
+
+##Remove gene ID and annotation columns from cts to make #rows in coldata match #columns in cts, both should be 15
+
+```{r}
+rownames(cts) <- cts[,1] #copies gene codes (in the first column) as the row names
+cts_removed_columns <- cts[-c(1:2)]
+ncol(cts_removed_columns) #15
+
+```
+
+##Ensure column data we are interested in is treated as a factor and NOT anything else
+#Important for later steps in work flow
+#We are interested in the Factor.Value.genotype. column, which is elaborated on in the next chunk
+```{r}
+coldata$Factor.Value.genotype. <- as.factor(coldata$Factor.Value.genotype.)
+```
+
+
+
+## Creation of DEseqDataSet
+#Countdata is just the processed RNAseq counts with removed columns
+#coldata is left as is
+#Design variable is meant to compare the different mutant genotypes with defective RNA polymerase rpotmp or prohibitin atphb3 and wild type
+#DETAIL MEANING OF DIFFERENT GENOTYPES, Differences in Capitalization vs. lowercase ANAC017 and anac017
+
+#Interested in this comparison with to look for differential expression of a mitonuclear suite of genes
+#Evidence of this provides suggestion of mitonuclear conflict and suggests that further network analysis using WGCNA may prove to be benefitial to look for topological change in the mitonuclear networks among each of the mutant genotypes
+
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = cts_removed_columns,
+                              colData = coldata,
+                              design = ~ Factor.Value.genotype.) #  Note: levels of factors in the design contain characters other than letters, numbers, '_' and '.'. It is recommended (but not required) to use only letters, numbers, and delimiters '_' or '.', as these are safe characters for column names in R. [This is a message, not a warning or an error]
+
+```
+
+## Releveling
+#Since DEseq2 will automatically make the base comparison the first genotype alphabetically, reveling is required to ensure the baseline comparison is the wild type genotype
+
+```{r}
+dds$Factor.Value.genotype. <- relevel(dds$Factor.Value.genotype., "wild type")
+
+```
+
+##Run DEseq2
+#Uses the dds DEseqDataSet and runs DEseq2
+
+```{r}
+DEseq2_run <- DESeq(dds)
+```
+
+##Results names 
+#Takes DEseq2 run and gives results names that will be used to extract results
+
+```{r}
+resultsNames(DEseq2_run) # Results names are as follows: "Factor.Value.genotype._atphb3.anac017_vs_wild.type" "Factor.Value.genotype._atphb3.ANAC017_vs_wild.type" "Factor.Value.genotype._rpotmp.anac017_vs_wild.type" "Factor.Value.genotype._rpotmp.ANAC017_vs_wild.type"
+
+
+```
+
+##Results Comparisons
+
+#Comparison atphb3.ANAC017_vs_wild.type
+
+```{r}
+res <- results(DEseq2_run, alpha = 0.05, name= "Factor.Value.genotype._atphb3.ANAC017_vs_wild.type") #sets up an expression comparison between between atphb3.ANAC017 mutant and wild.type
+summary(res) #1 10
+res.sig <- subset(res, padj < 0.05,) #Used to correct for multiple testing, since lots of genes are tested
+summary(res.sig) #1 10
+
+```
+
+#Comparison atphb3.anac017_vs_wild.type
+
+```{r}
+res2 <- results(DEseq2_run, alpha = 0.05, name= "Factor.Value.genotype._atphb3.anac017_vs_wild.type" )#sets up an expression comparison between between atphb3.anacC017 mutant and wild.type
+summary(res2) #0 0
+res2.sig <- subset(res2, padj < 0.05,)
+summary(res2.sig)#0 0
+```
+
+
+#Comparison rpotmp.anac017_vs_wild.type 
+
+```{r}
+res3 <- results(DEseq2_run, alpha = 0.05, name= "Factor.Value.genotype._rpotmp.anac017_vs_wild.type") #sets up an expression comparison between between rpotmp.anac017 mutant and wild.type
+summary(res3) #0 0
+res3.sig <- subset(res3, padj < 0.05,)
+summary(res3.sig) #0 0
+```
+
+
+# Comparison rpotmp.ANAC017_vs_wild.type
+
+```{r}
+res4 <- results(DEseq2_run, alpha = 0.05, name= "Factor.Value.genotype._rpotmp.ANAC017_vs_wild.type") #sets up an expression comparison between between rpotmp.ANAC017 mutant and wild.type
+summary(res4) #0 0
+res4.sig <- subset(res4, padj < 0.05,)
+summary(res4.sig) #0 0
+```
+
+##Extract Data for annotation
+
+#Only atphb3.ANAC017_vs_wild.type has significant differentially expressed genes, so we will only extract this. The following code sorts the data by decreasing log2fold change, creates a columns in the data set with the new data, and writes a new csv with the results for annotation. 
+
+```{r}
+res.sig <- (res.sig[ order(res.sig$log2FoldChange,decreasing = TRUE),]) 
+res.sig_list <- DEseq2_run[which(rownames(DEseq2_run)%in% rownames(res.sig)),]
+res.sig_counts <- counts(res.sig_list)
+res.sig_compare <- cbind(res.sig_counts, res.sig)
+write.csv(res.sig_compare, file = "results_atphb3.ANAC017_vs_wild.type.csv")
+```
+
+#Write csv for raw counts to use as an annotation file
+
+```{r}
+write.csv(cts, file = "raw_counts_annotated.csv")
+```
+
