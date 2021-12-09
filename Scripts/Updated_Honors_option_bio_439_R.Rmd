@@ -49,12 +49,7 @@ coldata$Factor.Value.genotype. <- as.factor(coldata$Factor.Value.genotype.)
 ## Creation of DEseqDataSet
 #Countdata is just the processed RNAseq counts with removed columns
 #coldata is left as is
-#Design variable is meant to compare the different mutant genotypes with defective RNA polymerase rpotmp or prohibitin atphb3 and wild type
-#DETAIL MEANING OF DIFFERENT GENOTYPES, Differences in Capitalization vs. lowercase ANAC017 and anac017
-
-#Interested in this comparison with to look for differential expression of a mitonuclear suite of genes
-#Evidence of this provides suggestion of mitonuclear conflict and suggests that further network analysis using WGCNA may prove to be benefitial to look for topological change in the mitonuclear networks among each of the mutant genotypes
-
+#Design variable is meant to compare the different mutant genotypes
 
 ```{r}
 dds <- DESeqDataSetFromMatrix(countData = cts_removed_columns,
